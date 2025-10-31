@@ -9,15 +9,14 @@ from smartface.config import (
     SILENCE_THRESHOLD,
     LISTEN_TIMEOUT
 )
-from smartface.audio.preprocessor import AudioPreprocessor
 
 
 class SpeechToText:
     """
-    Speech-to-Text with audio preprocessing
+    Speech-to-Text using Vosk offline recognition
     """
     
-    def __init__(self, enable_preprocessing=True):
+    def __init__(self):
         print("🔧 Initializing Speech Recognition...")
         
         # Load Vosk model
@@ -28,24 +27,45 @@ class SpeechToText:
             print("✅ Vosk model loaded")
         except Exception as e:
             print(f"❌ Error loading Vosk model: {e}")
+            print(f"Make sure model exists at: {VOSK_MODEL_PATH}")
             raise
         
         # Initialize PyAudio
         self.p = pyaudio.PyAudio()
         self.stream = None
+        
+        # Start audio stream
         self._start_stream()
         
         # Silence detection
         self.silence_counter = 0
-        
-        # Audio preprocessing
-        self.enable_preprocessing = enable_preprocessing
-        if enable_preprocessing:
-            self.preprocessor = AudioPreprocessor(SAMPLE_RATE)
-            print("✅ Audio preprocessing enabled")
+    
+    def _start_stream(self):
+        """Start audio input stream"""
+        try:
+            self.stream = self.p.open(
+                format=pyaudio.paInt16,
+                channels=1,
+                rate=SAMPLE_RATE,
+                input=True,
+                frames_per_buffer=CHUNK_SIZE
+            )
+            self.stream.start_stream()
+            print("✅ Microphone ready")
+        except Exception as e:
+            print(f"❌ Error opening microphone: {e}")
+            raise
     
     def listen(self, timeout=None):
-        """Listen with preprocessing"""
+        """
+        Listen for a complete sentence from the user
+        
+        Args:
+            timeout: Maximum time to listen (seconds)
+            
+        Returns:
+            str: Recognized text
+        """
         if timeout is None:
             timeout = LISTEN_TIMEOUT
         
@@ -59,18 +79,13 @@ class SpeechToText:
         
         try:
             while True:
+                # Check timeout
                 if time.time() - start_time > timeout:
                     print("\n⏱️  Timeout reached")
                     break
                 
                 # Read audio data
                 data = self.stream.read(CHUNK_SIZE, exception_on_overflow=False)
-                
-                # Apply preprocessing
-                if self.enable_preprocessing:
-                    data = self.preprocessor.preprocess(data)
-                    # Convert back to bytes
-                    data = data.tobytes()
                 
                 # Process with Vosk
                 if self.rec.AcceptWaveform(data):
@@ -98,6 +113,7 @@ class SpeechToText:
                         if has_spoken:
                             self.silence_counter += 1
                 
+                # Stop if silence after speech
                 if has_spoken and self.silence_counter > SILENCE_THRESHOLD:
                     print("\n🔇 Speech complete")
                     break
@@ -117,26 +133,6 @@ class SpeechToText:
             print("❌ No speech detected\n")
         
         return final_text
-    
-    def _is_sentence_complete(self, text):
-        """
-        Check if sentence appears complete
-        
-        Args:
-            text: Text to check
-            
-        Returns:
-            bool: True if sentence looks complete
-        """
-        # Check for sentence-ending punctuation
-        if text.endswith(('.', '?', '!')):
-            return True
-        
-        # Check for common ending words
-        ending_words = ['please', 'thanks', 'thank you', 'ok', 'okay', 'done']
-        last_word = text.split()[-1].lower() if text.split() else ""
-        
-        return last_word in ending_words
     
     def close(self):
         """Clean up resources"""

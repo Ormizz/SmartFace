@@ -95,16 +95,7 @@ class NLPProcessor:
             'device_status': [
                 'device status', 'what\'s the status', 'are lights on',
                 'check devices', 'home status', 'show devices'
-            ],
-            'weather': [
-                'what\'s the weather', 'how\'s the weather', 'is it raining',
-                'will it rain today', 'weather forecast', 'temperature outside',
-                'is it sunny', 'weather today', 'will it snow', 'what\'s the temperature',
-                'how hot is it', 'how cold is it', 'weather in', 'forecast for',
-                'tell me the weather', 'check the weather', 'weather conditions',
-                'is it going to rain', 'will it be sunny', 'weather tomorrow',
-                'three day forecast', 'weekly weather', 'weather report'
-            ],
+            ]
         }
         
         # Precompute embeddings for all intent examples
@@ -201,34 +192,6 @@ class NLPProcessor:
             if is_question and intent == 'unknown':
                 entities['likely_search'] = True
         
-
-        # Extract city names for weather queries
-        if intent == 'weather':
-            # Common cities (extend as needed)
-            cities = [
-                'mohali', 'chandigarh', 'delhi', 'mumbai', 'bangalore',
-                'hyderabad', 'chennai', 'kolkata', 'pune', 'ahmedabad',
-                'jaipur', 'lucknow', 'kanpur', 'nagpur', 'indore',
-                'paris', 'london', 'new york', 'tokyo', 'beijing',
-                'sydney', 'toronto', 'berlin', 'madrid', 'rome'
-            ]
-            
-            for city in cities:
-                if city in text_lower:
-                    entities['city'] = city.title()
-                    break
-            
-            # Check if it's a forecast request
-            forecast_keywords = [
-                'tomorrow', 'forecast', 'next', 'week', 'coming',
-                'three day', '3 day', 'weekly', 'upcoming', 'future'
-            ]
-            if any(keyword in text_lower for keyword in forecast_keywords):
-                entities['forecast'] = True
-            else:
-                entities['forecast'] = False
-
-                
         # Extract reminder text
         if intent == 'reminder_set':
             # Try to extract text after "remind me to" or similar

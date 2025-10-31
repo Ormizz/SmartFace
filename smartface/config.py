@@ -1,17 +1,7 @@
 import os
-from dotenv import load_dotenv
 
 # Disable tokenizers parallelism warning
 os.environ["TOKENIZERS_PARALLELISM"] = "false"
-
-# Charger les variables d'environnement
-load_dotenv()
-
-# API Configuration
-OPENWEATHER_API_KEY = os.getenv('OPENWEATHER_API_KEY')
-DEFAULT_CITY = os.getenv('DEFAULT_CITY', 'Mohali')
-DEFAULT_UNITS = os.getenv('DEFAULT_UNITS', 'metric')
-LANGUAGE = os.getenv('LANGUAGE', 'en')
 
 # Project paths
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -45,4 +35,3 @@ SMART_HOME_DEVICES = {
     "thermostat": {"type": "thermostat", "state": "off", "temperature": 20},
     "garage_door": {"type": "door", "state": "closed"},
 }
-
