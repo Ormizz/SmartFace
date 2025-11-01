@@ -10,6 +10,17 @@ from smartface.config import (
     LISTEN_TIMEOUT
 )
 
+import os
+import platform
+
+# Detect if on Raspberry Pi
+IS_RPI = os.path.exists('/sys/firmware/devicetree/base/model')
+
+if IS_RPI:
+    # Use Pi-specific config
+    from smartface.config_rpi import *
+else:
+    from smartface.config import *
 
 class SpeechToText:
     """
@@ -39,6 +50,11 @@ class SpeechToText:
         
         # Silence detection
         self.silence_counter = 0
+        # Dans __init__, ajoute:
+        if IS_RPI:
+            print("🍓 Running on Raspberry Pi - using optimized settings")
+            # Smaller buffer for Pi
+            CHUNK_SIZE = 2048
     
     def _start_stream(self):
         """Start audio input stream"""

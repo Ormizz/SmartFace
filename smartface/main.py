@@ -5,13 +5,31 @@ from smartface.response_handler import ResponseHandler
 from smartface.skills.web_search import WebSearchSkill
 from smartface.skills.reminder import ReminderSkill
 from smartface.skills.smart_home import SmartHomeSkill
+from smartface.skills.weather import WeatherSkill, WeatherSkillOffline
 import time
+import os
+import platform
+
+# Detect if on Raspberry Pi
+IS_RPI = os.path.exists('/sys/firmware/devicetree/base/model')
+
+if IS_RPI:
+    # Use Pi-specific config
+    from smartface.config_rpi import *
+else:
+    from smartface.config import *
+    
+# Import API keys if available
+try:
+    from smartface.api_keys import OPENWEATHER_API_KEY, DEFAULT_WEATHER_CITY
+except ImportError:
+    OPENWEATHER_API_KEY = None
+    DEFAULT_WEATHER_CITY = "London"
 
 
 class SmartFace:
     """
     Main SmartFace Voice Assistant
-    Integrates STT, TTS, NLP, and skills
     """
     
     def __init__(self):
@@ -29,6 +47,14 @@ class SmartFace:
         self.web_search = WebSearchSkill()
         self.reminders = ReminderSkill()
         self.smart_home = SmartHomeSkill()
+        
+        # Initialize weather skill
+        if OPENWEATHER_API_KEY and OPENWEATHER_API_KEY != "a42d24d326db9153a9ebebdaab56d41b":
+            self.weather = WeatherSkill(api_key=OPENWEATHER_API_KEY)
+            self.weather.set_default_city(DEFAULT_WEATHER_CITY)
+        else:
+            print("⚠️  No OpenWeather API key found, using offline weather")
+            self.weather = WeatherSkillOffline()
         
         # Track conversation state
         self.running = False
@@ -88,15 +114,7 @@ class SmartFace:
                 time.sleep(0.5)
     
     def _process_input(self, text):
-        """
-        Process user input and generate response
-        
-        Args:
-            text: User input text
-            
-        Returns:
-            str: Response text
-        """
+        """Process user input and generate response"""
         print(f"\n📝 Processing: \"{text}\"")
         
         # Classify intent
@@ -125,8 +143,7 @@ class SmartFace:
         
         # Route to appropriate handler based on intent
         if intent in ['greet', 'goodbye', 'how_are_you', 'thank', 'name', 
-                      'help', 'joke', 'time', 'date', 'weather']:
-            # Basic conversation - handled by response_handler
+                      'help', 'joke', 'time', 'date']:
             response = self.response_handler.generate_response(intent, entities, confidence)
         
         elif intent == 'web_search':
@@ -138,10 +155,12 @@ class SmartFace:
         elif intent in ['light_on', 'light_off', 'temperature_set', 'device_status']:
             response = self._handle_smart_home(intent, entities, text)
         
+        elif intent in ['weather', 'weather_city']:
+            response = self._handle_weather(entities, text)
+        
         else:
             # Unknown intent - try to be helpful
             if entities.get('query'):
-                # Has a query extracted, offer to search
                 response = f"I'm not sure what you're asking, but I can search for information. Would you like me to search for '{entities['query']}'?"
             else:
                 response = self.response_handler.generate_response('unknown')
@@ -156,19 +175,14 @@ class SmartFace:
             return "What would you like me to search for?"
         
         print(f"🌐 Performing web search for: {query}")
-        
-        # Perform search
         result = self.web_search.search(query)
         
-        # Summarize if too long for speech
+        # Summarize if too long
         if len(result) > 300:
-            # Split by newlines and take first part
             parts = result.split('\n\n')
             if len(parts) > 1:
-                # Return main content + simplified source
                 return parts[0]
             else:
-                # Truncate and add indicator
                 return result[:300] + "... Would you like to know more?"
         
         return result
@@ -209,6 +223,11 @@ class SmartFace:
             return self.smart_home.get_status()
         
         return "I'm not sure what you want to do with your devices."
+    
+    def _handle_weather(self, entities, text):
+        """Handle weather requests"""
+        print(f"🌤️ Getting weather information...")
+        return self.weather.handle('weather', entities, text)
     
     def _shutdown(self):
         """Clean shutdown"""
