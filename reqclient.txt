@@ -1,3 +1,18 @@
 # SmartFace Client (Raspberry Pi)
 pyaudio==0.2.14
 requests==2.31.0
+
+
+sudo apt install -y git build-essential libffi-dev libssl-dev
+
+cd /tmp
+PYVER=$(python3 -c "import sys; print(f'{sys.version_info.major}.{sys.version_info.minor}')")
+wget https://github.com/python/cpython/archive/refs/tags/v$PYVER.tar.gz -O python-src.tar.gz
+tar -xf python-src.tar.gz
+cd cpython-*
+
+cd Modules
+gcc -I../Include -I../Python -shared -fPIC audioop.c -o audioop$(python3-config --extension-suffix)
+sudo cp audioop$(python3-config --extension-suffix) $(python3 -c "import sysconfig; print(sysconfig.get_path('platlib'))")
+
+python3 -c "import audioop; print('audioop restored')"
