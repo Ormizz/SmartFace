@@ -1,0 +1,3 @@
+# SmartFace Client (Raspberry Pi)
+pyaudio==0.2.14
+requests==2.31.0
