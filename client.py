@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-SmartFace Client with automatic audio initialization
+SmartFace Client with LED indicators
 """
 
 import pyaudio
@@ -21,14 +21,6 @@ from smartface.config import (
     TTS_VOLUME
 )
 
-# Import audio utilities
-try:
-    from smartface.audio_utils import initialize_audio
-    AUDIO_UTILS_AVAILABLE = True
-except ImportError:
-    AUDIO_UTILS_AVAILABLE = False
-    print("⚠️  Audio utils not found - manual configuration required")
-
 # Import LED controller
 try:
     from smartface.led import LEDController
@@ -41,7 +33,7 @@ except ImportError:
 class SmartFaceClient:
     """Simple audio client with LED status indicators"""
     
-    def __init__(self, server_url: str, auto_init_audio: bool = True):
+    def __init__(self, server_url: str):
         # Fix URL if missing protocol
         if not server_url.startswith(('http://', 'https://')):
             server_url = f"http://{server_url}"
@@ -49,7 +41,6 @@ class SmartFaceClient:
         self.server_url = server_url
         self.p = pyaudio.PyAudio()
         self.stream = None
-        self.bluetooth_device_index = None
         
         # Initialize LED controller
         if LED_AVAILABLE:
@@ -66,13 +57,6 @@ class SmartFaceClient:
         if self.led:
             self.led.set_idle()
         
-        # Auto-initialize audio if requested
-        if auto_init_audio and AUDIO_UTILS_AVAILABLE:
-            audio_config = initialize_audio()
-            if audio_config:
-                self.bluetooth_device_index = audio_config['bluetooth_index']
-                print(f"📌 Using Bluetooth device index: {self.bluetooth_device_index}\n")
-        
         # Test connection
         try:
             r = requests.get(f"{server_url}/health", timeout=5)
@@ -85,39 +69,8 @@ class SmartFaceClient:
             if self.led:
                 self.led.set_error()
         
-        # List available devices if no auto-init
-        if not auto_init_audio or not AUDIO_UTILS_AVAILABLE:
-            print("\n📋 Available audio devices:")
-            for i in range(self.p.get_device_count()):
-                info = self.p.get_device_info_by_index(i)
-                if info['maxInputChannels'] > 0:
-                    print(f"  [{i}] {info['name']} (in:{info['maxInputChannels']})")
-            print()
-        
-        # Start audio stream
-        self._init_audio_stream()
-    
-    def _init_audio_stream(self):
-        """Initialize audio input stream"""
+        # Start audio
         try:
-            # Try with Bluetooth device if found
-            if self.bluetooth_device_index is not None:
-                try:
-                    self.stream = self.p.open(
-                        format=pyaudio.paInt16,
-                        channels=1,
-                        rate=SAMPLE_RATE,
-                        input=True,
-                        input_device_index=self.bluetooth_device_index,
-                        frames_per_buffer=CHUNK_SIZE
-                    )
-                    print(f"✅ Microphone ready (Bluetooth device {self.bluetooth_device_index})\n")
-                    return
-                except Exception as e:
-                    print(f"⚠️  Bluetooth device failed: {e}")
-                    print("   Falling back to default device...\n")
-            
-            # Fallback to default device
             self.stream = self.p.open(
                 format=pyaudio.paInt16,
                 channels=1,
@@ -125,12 +78,41 @@ class SmartFaceClient:
                 input=True,
                 frames_per_buffer=CHUNK_SIZE
             )
-            print("✅ Microphone ready (default device)\n")
-            
+            print("✅ Microphone ready\n")
         except Exception as e:
             print(f"❌ Microphone error: {e}")
             if self.led:
                 self.led.set_error()
+            raise
+        # Lister les périphériques disponibles
+        print("\n📋 Périphériques audio disponibles:")
+        for i in range(self.p.get_device_count()):
+            info = self.p.get_device_info_by_index(i)
+            print(f"  [{i}] {info['name']} (in:{info['maxInputChannels']}, out:{info['maxOutputChannels']})")
+        
+        # Trouver le périphérique Bluetooth
+        bluetooth_device = None
+        for i in range(self.p.get_device_count()):
+            info = self.p.get_device_info_by_index(i)
+            # Chercher "bluez" ou le nom de vos écouteurs
+            if 'bluez' in info['name'].lower() and info['maxInputChannels'] > 0:
+                bluetooth_device = i
+                print(f"\n✅ Périphérique Bluetooth trouvé: {info['name']}")
+                break
+        
+        # Ouvrir le stream avec le bon périphérique
+        try:
+            self.stream = self.p.open(
+                format=pyaudio.paInt16,
+                channels=1,
+                rate=SAMPLE_RATE,
+                input=True,
+                input_device_index=bluetooth_device,  # ← IMPORTANT
+                frames_per_buffer=CHUNK_SIZE
+            )
+            print("✅ Microphone prêt\n")
+        except Exception as e:
+            print(f"❌ Erreur microphone: {e}")
             raise
     
     def record(self) -> bytes:
@@ -206,6 +188,7 @@ class SmartFaceClient:
                 self.led.set_error()
             return None
     
+    
     def send(self, audio: bytes) -> dict:
         """Send audio to server - RED LED stays ON"""
         print("📤 Sending to server...")
@@ -248,18 +231,22 @@ class SmartFaceClient:
             self.led.set_processing()
         
         try:
-            # Générer avec espeak et jouer via PipeWire
-            cmd = f'espeak -v en -s {TTS_RATE} "{text}" --stdout | pw-play -'
+            # macOS
             subprocess.run(
-                cmd,
-                shell=True,
+                ['say', '-r', str(TTS_RATE), text],
                 stdout=subprocess.DEVNULL,
-                stderr=subprocess.DEVNULL,
-                check=False
+                stderr=subprocess.DEVNULL
             )
-        except Exception as e:
-            print(f"⚠️  TTS error: {e}")
-            # Fallback to text display only
+        except FileNotFoundError:
+            try:
+                # Linux/Pi
+                subprocess.run(
+                    ['espeak', '-s', str(TTS_RATE), text],
+                    stdout=subprocess.DEVNULL,
+                    stderr=subprocess.DEVNULL
+                )
+            except:
+                pass
     
     def run(self):
         """Main loop"""
@@ -362,18 +349,9 @@ LED Status:
         help='Server URL (e.g., http://192.168.1.72:8000)'
     )
     
-    parser.add_argument(
-        '--no-auto-init',
-        action='store_true',
-        help='Disable automatic audio initialization'
-    )
-    
     args = parser.parse_args()
     
-    client = SmartFaceClient(
-        args.server,
-        auto_init_audio=not args.no_auto_init
-    )
+    client = SmartFaceClient(args.server)
     client.run()
 
 
