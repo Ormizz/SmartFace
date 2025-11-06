@@ -39,6 +39,7 @@ class SmartFaceClient:
             server_url = f"http://{server_url}"
         
         self.server_url = server_url
+        
         self.p = pyaudio.PyAudio()
         self.stream = None
         
