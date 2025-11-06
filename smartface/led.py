@@ -19,8 +19,8 @@ class LEDController:
     """
     
     # GPIO Pin numbers (BCM mode)
-    BLUE_LED_PIN = 17   # GPIO 17 (Physical pin 11)
-    RED_LED_PIN = 27    # GPIO 27 (Physical pin 13)
+    BLUE_LED_PIN = 18   # GPIO 17 (Physical pin 11)
+    RED_LED_PIN = 17    # GPIO 27 (Physical pin 13)
     
     def __init__(self):
         self.enabled = GPIO_AVAILABLE
