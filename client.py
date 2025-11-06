@@ -85,35 +85,35 @@ class SmartFaceClient:
                 self.led.set_error()
             raise
         # Lister les périphériques disponibles
-    print("\n📋 Périphériques audio disponibles:")
-    for i in range(self.p.get_device_count()):
-        info = self.p.get_device_info_by_index(i)
-        print(f"  [{i}] {info['name']} (in:{info['maxInputChannels']}, out:{info['maxOutputChannels']})")
-    
-    # Trouver le périphérique Bluetooth
-    bluetooth_device = None
-    for i in range(self.p.get_device_count()):
-        info = self.p.get_device_info_by_index(i)
-        # Chercher "bluez" ou le nom de vos écouteurs
-        if 'bluez' in info['name'].lower() and info['maxInputChannels'] > 0:
-            bluetooth_device = i
-            print(f"\n✅ Périphérique Bluetooth trouvé: {info['name']}")
-            break
-    
-    # Ouvrir le stream avec le bon périphérique
-    try:
-        self.stream = self.p.open(
-            format=pyaudio.paInt16,
-            channels=1,
-            rate=SAMPLE_RATE,
-            input=True,
-            input_device_index=bluetooth_device,  # ← IMPORTANT
-            frames_per_buffer=CHUNK_SIZE
-        )
-        print("✅ Microphone prêt\n")
-    except Exception as e:
-        print(f"❌ Erreur microphone: {e}")
-        raise
+        print("\n📋 Périphériques audio disponibles:")
+        for i in range(self.p.get_device_count()):
+            info = self.p.get_device_info_by_index(i)
+            print(f"  [{i}] {info['name']} (in:{info['maxInputChannels']}, out:{info['maxOutputChannels']})")
+        
+        # Trouver le périphérique Bluetooth
+        bluetooth_device = None
+        for i in range(self.p.get_device_count()):
+            info = self.p.get_device_info_by_index(i)
+            # Chercher "bluez" ou le nom de vos écouteurs
+            if 'bluez' in info['name'].lower() and info['maxInputChannels'] > 0:
+                bluetooth_device = i
+                print(f"\n✅ Périphérique Bluetooth trouvé: {info['name']}")
+                break
+        
+        # Ouvrir le stream avec le bon périphérique
+        try:
+            self.stream = self.p.open(
+                format=pyaudio.paInt16,
+                channels=1,
+                rate=SAMPLE_RATE,
+                input=True,
+                input_device_index=bluetooth_device,  # ← IMPORTANT
+                frames_per_buffer=CHUNK_SIZE
+            )
+            print("✅ Microphone prêt\n")
+        except Exception as e:
+            print(f"❌ Erreur microphone: {e}")
+            raise
     
     def record(self) -> bytes:
         """Record audio until silence - BLUE LED ON"""
